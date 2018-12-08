@@ -151,22 +151,24 @@ void ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, cons
 
 
 double ScanMatcher::optimize(OrientedPoint& pnew, const ScanMatcherMap& map, const OrientedPoint& init, const double* readings) const{
-	double bestScore=-1;
-	OrientedPoint currentPose=init;
-	double currentScore=score(map, currentPose, readings);
-	double adelta=m_optAngularDelta, ldelta=m_optLinearDelta;
-	unsigned int refinement=0;
+	double bestScore = -1;
+	OrientedPoint currentPose = init;
+
+	// Matching score of predicted pose.
+	double currentScore = score(map, currentPose, readings);
+	double adelta = m_optAngularDelta, ldelta = m_optLinearDelta;
+	unsigned int refinement = 0;
+
 	enum Move{Front, Back, Left, Right, TurnLeft, TurnRight, Done};
 	int c_iterations=0;
 	do{
-		if (bestScore>=currentScore){
+		if (bestScore >= currentScore){
 			refinement++;
-			adelta*=.5;
-			ldelta*=.5;
+			adelta *= 0.5;
+			ldelta *= 0.5;
 		}
-		bestScore=currentScore;
-//		cout <<"score="<< currentScore << " refinement=" << refinement;
-//		cout <<  "pose=" << currentPose.x  << " " << currentPose.y << " " << currentPose.theta << endl;
+		bestScore = currentScore;
+
 		OrientedPoint bestLocalPose=currentPose;
 		OrientedPoint localPose=currentPose;
 
@@ -175,45 +177,47 @@ double ScanMatcher::optimize(OrientedPoint& pnew, const ScanMatcherMap& map, con
 			localPose=currentPose;
 			switch(move){
 				case Front:
-					localPose.x+=ldelta;
-					move=Back;
+					localPose.x += ldelta;
+					move = Back;
 					break;
 				case Back:
-					localPose.x-=ldelta;
-					move=Left;
+					localPose.x -= ldelta;
+					move = Left;
 					break;
 				case Left:
-					localPose.y-=ldelta;
-					move=Right;
+					localPose.y -= ldelta;
+					move = Right;
 					break;
 				case Right:
-					localPose.y+=ldelta;
-					move=TurnLeft;
+					localPose.y += ldelta;
+					move = TurnLeft;
 					break;
 				case TurnLeft:
-					localPose.theta+=adelta;
-					move=TurnRight;
+					localPose.theta += adelta;
+					move = TurnRight;
 					break;
 				case TurnRight:
-					localPose.theta-=adelta;
-					move=Done;
+					localPose.theta -= adelta;
+					move = Done;
 					break;
 				default:;
 			}
+
+			// Score of the temporary updated pose (Trial).
 			double localScore=score(map, localPose, readings);
 			if (localScore>currentScore){
 				currentScore=localScore;
 				bestLocalPose=localPose;
 			}
+
 			c_iterations++;
-		} while(move!=Done);
+		} while (move != Done);
 		currentPose=bestLocalPose;
-		//cout << __PRETTY_FUNCTION__ << "currentScore=" << currentScore<< endl;
-		//here we look for the best move;
+
 	}while (currentScore>bestScore || refinement<m_optRecursiveIterations);
-	//cout << __PRETTY_FUNCTION__ << "bestScore=" << bestScore<< endl;
-	//cout << __PRETTY_FUNCTION__ << "iterations=" << c_iterations<< endl;
-	pnew=currentPose;
+
+	// Return the pose with highest score.
+	pnew = currentPose;
 	return bestScore;
 }
 

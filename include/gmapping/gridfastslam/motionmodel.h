@@ -8,6 +8,8 @@
 namespace  GMapping { 
 
 struct MotionModel{
+
+	/** Update pose of the particle. **/
 	OrientedPoint drawFromMotion(const OrientedPoint& p, double linearMove, double angularMove) const;
 	OrientedPoint drawFromMotion(const OrientedPoint& p, const OrientedPoint& pnew, const OrientedPoint& pold) const;
 	Covariance3 gaussianApproximation(const OrientedPoint& pnew, const OrientedPoint& pold) const;

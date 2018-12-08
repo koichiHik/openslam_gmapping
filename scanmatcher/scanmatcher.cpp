@@ -30,22 +30,6 @@ ScanMatcher::ScanMatcher(): m_laserPose(0,0,0){
 	m_linearOdometryReliability=0.;
 	m_freeCellRatio=sqrt(2.);
 	m_initialBeamsSkip=0;
-	
-/*	
-	// This  are the dafault settings for a grid map of 10 cm
-	m_llsamplerange=0.1;
-	m_llsamplestep=0.1;
-	m_lasamplerange=0.02;
-	m_lasamplestep=0.01;
-*/	
-	// This  are the dafault settings for a grid map of 20/25 cm
-/*
-	m_llsamplerange=0.2;
-	m_llsamplestep=0.1;
-	m_lasamplerange=0.02;
-	m_lasamplestep=0.01;
-	m_generateMap=false;
-*/
 
    m_linePoints = new IntPoint[20000];
 }
@@ -58,61 +42,6 @@ void ScanMatcher::invalidateActiveArea(){
 	m_activeAreaComputed=false;
 }
 
-/*
-void ScanMatcher::computeActiveArea(ScanMatcherMap& map, const OrientedPoint& p, const double* readings){
-	if (m_activeAreaComputed)
-		return;
-	HierarchicalArray2D<PointAccumulator>::PointSet activeArea;
-	OrientedPoint lp=p;
-	lp.x+=cos(p.theta)*m_laserPose.x-sin(p.theta)*m_laserPose.y;
-	lp.y+=sin(p.theta)*m_laserPose.x+cos(p.theta)*m_laserPose.y;
-	lp.theta+=m_laserPose.theta;
-	IntPoint p0=map.world2map(lp);
-	const double * angle=m_laserAngles;
-	for (const double* r=readings; r<readings+m_laserBeams; r++, angle++)
-		if (m_generateMap){
-			double d=*r;
-			if (d>m_laserMaxRange)
-				continue;
-			if (d>m_usableRange)
-				d=m_usableRange;
-			
-			Point phit=lp+Point(d*cos(lp.theta+*angle),d*sin(lp.theta+*angle));
-			IntPoint p1=map.world2map(phit);
-			
-			d+=map.getDelta();
-			//Point phit2=lp+Point(d*cos(lp.theta+*angle),d*sin(lp.theta+*angle));
-			//IntPoint p2=map.world2map(phit2);
-			IntPoint linePoints[20000] ;
-			GridLineTraversalLine line;
-			line.points=linePoints;
-			//GridLineTraversal::gridLine(p0, p2, &line);
-			GridLineTraversal::gridLine(p0, p1, &line);
-			for (int i=0; i<line.num_points-1; i++){
-				activeArea.insert(map.storage().patchIndexes(linePoints[i]));
-			}
-			if (d<=m_usableRange){
-				activeArea.insert(map.storage().patchIndexes(p1));
-				//activeArea.insert(map.storage().patchIndexes(p2));
-			}
-		} else {
-			if (*r>m_laserMaxRange||*r>m_usableRange) continue;
-			Point phit=lp;
-			phit.x+=*r*cos(lp.theta+*angle);
-			phit.y+=*r*sin(lp.theta+*angle);
-			IntPoint p1=map.world2map(phit);
-			assert(p1.x>=0 && p1.y>=0);
-			IntPoint cp=map.storage().patchIndexes(p1);
-			assert(cp.x>=0 && cp.y>=0);
-			activeArea.insert(cp);
-			
-		}
-	//this allocates the unallocated cells in the active area of the map
-	//cout << "activeArea::size() " << activeArea.size() << endl;
-	map.storage().setActiveArea(activeArea, true);
-	m_activeAreaComputed=true;
-}
-*/
 void ScanMatcher::computeActiveArea(ScanMatcherMap& map, const OrientedPoint& p, const double* readings){
 	if (m_activeAreaComputed)
 		return;
@@ -199,122 +128,86 @@ void ScanMatcher::computeActiveArea(ScanMatcherMap& map, const OrientedPoint& p,
 			activeArea.insert(cp);
 		}
 	
-	//this allocates the unallocated cells in the active area of the map
-	//cout << "activeArea::size() " << activeArea.size() << endl;
-/*	
-	cerr << "ActiveArea=";
-	for (HierarchicalArray2D<PointAccumulator>::PointSet::const_iterator it=activeArea.begin(); it!= activeArea.end(); it++){
-		cerr << "(" << it->x <<"," << it->y << ") ";
-	}
-	cerr << endl;
-*/		
 	map.storage().setActiveArea(activeArea, true);
 	m_activeAreaComputed=true;
 }
 
 double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, const double* readings){
-	if (!m_activeAreaComputed)
+	
+	if (!m_activeAreaComputed) {
 		computeActiveArea(map, p, readings);
+	}
 		
-	//this operation replicates the cells that will be changed in the registration operation
+	// This operation replicates the cells that will be changed in the registration operation.
 	map.storage().allocActiveArea();
 	
-	OrientedPoint lp=p;
-	lp.x+=cos(p.theta)*m_laserPose.x-sin(p.theta)*m_laserPose.y;
-	lp.y+=sin(p.theta)*m_laserPose.x+cos(p.theta)*m_laserPose.y;
-	lp.theta+=m_laserPose.theta;
-	IntPoint p0=map.world2map(lp);
+	// Convert
+	OrientedPoint lp = p;
+	lp.x += cos(p.theta) * m_laserPose.x - sin(p.theta) * m_laserPose.y;
+	lp.y += sin(p.theta) * m_laserPose.x + cos(p.theta) * m_laserPose.y;
+	lp.theta += m_laserPose.theta;
+
+	// Point of radiation.
+	IntPoint p0 = map.world2map(lp);
 	
-	
-	const double * angle=m_laserAngles+m_initialBeamsSkip;
-	double esum=0;
-	for (const double* r=readings+m_initialBeamsSkip; r<readings+m_laserBeams; r++, angle++)
+	const double * angle = m_laserAngles + m_initialBeamsSkip;
+	double esum = 0;
+
+	// Iterate through all beams.
+	for (const double* r = readings + m_initialBeamsSkip; r < readings + m_laserBeams; r++, angle++) {
+
 		if (m_generateMap){
-			double d=*r;
-			if (d>m_laserMaxRange||d==0.0||isnan(d))
+			double d = *r;
+			// Reject all invalid readings.
+			if (d > m_laserMaxRange || d==0.0 || isnan(d)) {
 				continue;
-			if (d>m_usableRange)
-				d=m_usableRange;
-			Point phit=lp+Point(d*cos(lp.theta+*angle),d*sin(lp.theta+*angle));
-			IntPoint p1=map.world2map(phit);
-			//IntPoint linePoints[20000] ;
+			}
+
+			if (d > m_usableRange) {
+				d = m_usableRange;
+			}
+
+			Point phit = lp + Point(d * cos(lp.theta + *angle), d * sin(lp.theta + *angle));
+			IntPoint p1 = map.world2map(phit);
 			GridLineTraversalLine line;
-			line.points=m_linePoints;
+			line.points = m_linePoints;
+
+			// Collect all grid traversed by this line.
+			// Kind of ray casting??
 			GridLineTraversal::gridLine(p0, p1, &line);
-			for (int i=0; i<line.num_points-1; i++){
-				PointAccumulator& cell=map.cell(line.points[i]);
-				double e=-cell.entropy();
+			for (int i = 0; i < line.num_points - 1; i++){
+				PointAccumulator& cell = map.cell(line.points[i]);
+				double e =- cell.entropy();
 				cell.update(false, Point(0,0));
-				e+=cell.entropy();
-				esum+=e;
+				e += cell.entropy();
+				esum += e;
 			}
-			if (d<m_usableRange){
-				double e=-map.cell(p1).entropy();
+
+			if (d < m_usableRange){
+				double e =- map.cell(p1).entropy();
 				map.cell(p1).update(true, phit);
-				e+=map.cell(p1).entropy();
-				esum+=e;
+				e += map.cell(p1).entropy();
+				esum += e;
 			}
+
 		} else {
-			if (*r>m_laserMaxRange||*r>m_usableRange||*r==0.0||isnan(*r)) continue;
-			Point phit=lp;
-			phit.x+=*r*cos(lp.theta+*angle);
-			phit.y+=*r*sin(lp.theta+*angle);
-			IntPoint p1=map.world2map(phit);
-			assert(p1.x>=0 && p1.y>=0);
+
+			if (*r > m_laserMaxRange || *r > m_usableRange || *r == 0.0 || isnan(*r)) {
+				continue;
+			}
+
+			Point phit = lp;
+			phit.x += *r * cos(lp.theta + *angle);
+			phit.y += *r * sin(lp.theta + *angle);
+			IntPoint p1 = map.world2map(phit);
+			assert(p1.x >= 0 && p1.y >= 0);
 			map.cell(p1).update(true,phit);
 		}
-	//cout  << "informationGain=" << -esum << endl;
+	}
+
 	return esum;
 }
 
-/*
-void ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, const double* readings){
-	if (!m_activeAreaComputed)
-		computeActiveArea(map, p, readings);
-		
-	//this operation replicates the cells that will be changed in the registration operation
-	map.storage().allocActiveArea();
-	
-	OrientedPoint lp=p;
-	lp.x+=cos(p.theta)*m_laserPose.x-sin(p.theta)*m_laserPose.y;
-	lp.y+=sin(p.theta)*m_laserPose.x+cos(p.theta)*m_laserPose.y;
-	lp.theta+=m_laserPose.theta;
-	IntPoint p0=map.world2map(lp);
-	const double * angle=m_laserAngles;
-	for (const double* r=readings; r<readings+m_laserBeams; r++, angle++)
-		if (m_generateMap){	
-			double d=*r;
-			if (d>m_laserMaxRange)
-				continue;
-			if (d>m_usableRange)
-				d=m_usableRange;
-			Point phit=lp+Point(d*cos(lp.theta+*angle),d*sin(lp.theta+*angle));
-			IntPoint p1=map.world2map(phit);
-			
-			IntPoint linePoints[20000] ;
-			GridLineTraversalLine line;
-			line.points=linePoints;
-			GridLineTraversal::gridLine(p0, p1, &line);
-			for (int i=0; i<line.num_points-1; i++){
-				IntPoint ci=map.storage().patchIndexes(line.points[i]);
-				if (map.storage().getActiveArea().find(ci)==map.storage().getActiveArea().end())
-					cerr << "BIG ERROR" <<endl;
-				map.cell(line.points[i]).update(false, Point(0,0));
-			}
-			if (d<=m_usableRange){
-				
-				map.cell(p1).update(true,phit);
-			}
-		} else {
-			if (*r>m_laserMaxRange||*r>m_usableRange) continue;
-			Point phit=lp;
-			phit.x+=*r*cos(lp.theta+*angle);
-			phit.y+=*r*sin(lp.theta+*angle);
-			map.cell(phit).update(true,phit);
-		}
-}
-
-*/
 
 double ScanMatcher::icpOptimize(OrientedPoint& pnew, const ScanMatcherMap& map, const OrientedPoint& init, const double* readings) const{
 	double currentScore;
@@ -325,8 +218,6 @@ double ScanMatcher::icpOptimize(OrientedPoint& pnew, const ScanMatcherMap& map, 
 	do{
 		currentScore=sc;
 		sc=icpStep(pnew, map, start, readings);
-		//cerr << "pstart=" << start.x << " " <<start.y << " " << start.theta << endl;
-		//cerr << "pret=" << pnew.x << " " <<pnew.y << " " << pnew.theta << endl;
 		start=pnew;
 		iterations++;
 	} while (sc>currentScore);
@@ -341,12 +232,8 @@ double ScanMatcher::optimize(OrientedPoint& pnew, const ScanMatcherMap& map, con
 	double adelta=m_optAngularDelta, ldelta=m_optLinearDelta;
 	unsigned int refinement=0;
 	enum Move{Front, Back, Left, Right, TurnLeft, TurnRight, Done};
-/*	cout << __PRETTY_FUNCTION__<<  " readings: ";
-	for (int i=0; i<m_laserBeams; i++){
-		cout << readings[i] << " ";
-	}
-	cout << endl;
-*/	int c_iterations=0;
+	int c_iterations=0;
+
 	do{
 		if (bestScore>=currentScore){
 			refinement++;
@@ -354,8 +241,7 @@ double ScanMatcher::optimize(OrientedPoint& pnew, const ScanMatcherMap& map, con
 			ldelta*=.5;
 		}
 		bestScore=currentScore;
-//		cout <<"score="<< currentScore << " refinement=" << refinement;
-//		cout <<  "pose=" << currentPose.x  << " " << currentPose.y << " " << currentPose.theta << endl;
+
 		OrientedPoint bestLocalPose=currentPose;
 		OrientedPoint localPose=currentPose;
 
@@ -409,12 +295,11 @@ double ScanMatcher::optimize(OrientedPoint& pnew, const ScanMatcherMap& map, con
 			}
 			c_iterations++;
 		} while(move!=Done);
+
 		currentPose=bestLocalPose;
-//		cout << "currentScore=" << currentScore<< endl;
-		//here we look for the best move;
-	}while (currentScore>bestScore || refinement<m_optRecursiveIterations);
-	//cout << __PRETTY_FUNCTION__ << "bestScore=" << bestScore<< endl;
-	//cout << __PRETTY_FUNCTION__ << "iterations=" << c_iterations<< endl;
+
+	}while (currentScore > bestScore || refinement < m_optRecursiveIterations);
+
 	pnew=currentPose;
 	return bestScore;
 }

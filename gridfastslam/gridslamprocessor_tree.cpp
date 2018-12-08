@@ -205,14 +205,14 @@ void  GridSlamProcessor::updateTreeWeights(bool weightsAlreadyNormalized){
 }
 
 void GridSlamProcessor::resetTree(){
-  // don't calls this function directly, use updateTreeWeights(..) !
+  // Don't calls this function directly, use updateTreeWeights(..) !
 
-	for (ParticleVector::iterator it=m_particles.begin(); it!=m_particles.end(); it++){
-		TNode* n=it->node;
+	for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++){
+		TNode* n = it->node;
 		while (n){
-			n->accWeight=0;
-			n->visitCounter=0;
-			n=n->parent;
+			n->accWeight = 0;
+			n->visitCounter = 0;
+			n = n->parent;
 		}
 	}
 }
@@ -231,30 +231,33 @@ double propagateWeight(GridSlamProcessor::TNode* n, double weight){
 }
 
 double GridSlamProcessor::propagateWeights(){
-  // don't calls this function directly, use updateTreeWeights(..) !
 
-        // all nodes must be resetted to zero and weights normalized
+  // Don't calls this function directly, use updateTreeWeights(..) !
+  // All nodes must be resetted to zero and weights normalized.
+  
+	// The accumulated weight of the root.
+	double lastNodeWeight = 0;
 
-        // the accumulated weight of the root
-	double lastNodeWeight=0;
-	// sum of the weights in the leafs
-	double aw=0;                   
+	// Sum of the weights in the leafs.
+	double aw = 0;                   
 
-	std::vector<double>::iterator w=m_weights.begin();
-	for (ParticleVector::iterator it=m_particles.begin(); it!=m_particles.end(); it++){
-		double weight=*w;
-		aw+=weight;
-		TNode * n=it->node;
-		n->accWeight=weight;
-		lastNodeWeight+=propagateWeight(n->parent,n->accWeight);
+	std::vector<double>::iterator w = m_weights.begin();
+
+	for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++){
+		double weight = *w;
+		aw += weight;
+		TNode *n = it->node;
+		n->accWeight = weight;
+		lastNodeWeight += propagateWeight(n->parent,n->accWeight);
 		w++;
 	}
 	
-	if (fabs(aw-1.0) > 0.0001 || fabs(lastNodeWeight-1.0) > 0.0001) {
+	if (fabs(aw - 1.0) > 0.0001 || fabs(lastNodeWeight - 1.0) > 0.0001) {
 	  cerr << "ERROR: ";
 	  cerr << "root->accWeight=" << lastNodeWeight << "    sum_leaf_weights=" << aw << endl;
 	  assert(0);         
 	}
+
 	return lastNodeWeight;
 }
 

@@ -46,7 +46,7 @@ double PointAccumulator::entropy() const{
 	return -( x*log(x)+ (1-x)*log(1-x) );
 }
 
-
+// Map owned by each particle.
 typedef Map<PointAccumulator,HierarchicalArray2D<PointAccumulator> > ScanMatcherMap;
 
 };
