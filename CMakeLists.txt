@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 2.8)
 project(openslam_gmapping)
 
-find_package(catkin)
+set(CMAKE_BUILD_TYPE Release)
 
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES gridfastslam scanmatcher sensor_base sensor_range sensor_odometry utils
-)
+#find_package(catkin)
+
+#catkin_package(
+#  INCLUDE_DIRS include
+#  LIBRARIES gridfastslam scanmatcher sensor_base sensor_range sensor_odometry utils
+#)
 
 include_directories(include)
 
@@ -20,7 +22,8 @@ if(0)
 endif()
 
 install(DIRECTORY include/
-  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}
+  #DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}
+  DESTINATION "${CMAKE_SOURCE_DIR}/../install"
   FILES_MATCHING PATTERN "*.h"
                  PATTERN "*.hxx"
   PATTERN ".svn" EXCLUDE

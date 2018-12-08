@@ -6,4 +6,5 @@ add_library(gridfastslam
 )
 target_link_libraries(gridfastslam scanmatcher sensor_range)
 
-install(TARGETS gridfastslam DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
+#install(TARGETS gridfastslam DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
+install(TARGETS gridfastslam DESTINATION "${CMAKE_SOURCE_DIR}/../install/lib")
