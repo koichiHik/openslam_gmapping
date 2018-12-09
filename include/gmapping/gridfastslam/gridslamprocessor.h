@@ -34,6 +34,33 @@ namespace GMapping {
   class GridSlamProcessor{
   public:
 
+    struct GridSlamProcParams {
+      GridSlamProcParams()
+        : particle_num(0), 
+          period(5.0),
+          obsSigmaGain(1.0),
+          resampleThreshold(0.5),
+          minimumScore(0.0)
+      {}
+
+      unsigned int particle_num;
+      double period;
+      double x_min, y_min, x_max, y_max;
+      double delta;
+      double maxMove;
+      double linearThresholdDistance;
+      double angularThresholdDistance;
+      double resampleThreshold;
+      double obsSigmaGain;
+      double regScore, critScore;
+      double minimumScore;
+    };
+
+    struct Params {
+      GridSlamProcessor::GridSlamProcParams gridSlamProcParams;
+      ScanMatcher::Params scanMatcherParams;
+      MotionModel::Params motionModelParams;
+    };
     
     /**This class defines the the node of reversed tree in which the trajectories are stored.
        Each node of a tree has a pointer to its parent and a counter indicating the number of childs of a node.
@@ -64,7 +91,6 @@ namespace GMapping {
 
       double gweight;
 
-
       /**The parent*/
       TNode* parent;
 
@@ -84,7 +110,9 @@ namespace GMapping {
     typedef std::vector<GridSlamProcessor::TNode*> TNodeVector;
     typedef std::deque<GridSlamProcessor::TNode*> TNodeDeque;
     
-    /**This class defines a particle of the filter. Each particle has a map, a pose, a weight and retains the current node in the trajectory tree*/
+    /**This class defines a particle of the filter. Each particle has a map, a pose, 
+     * a weight and retains the current node in the trajectory tree
+     **/
     struct Particle{
       /**constructs a particle, given a map
 	 @param map: the particle map
@@ -142,14 +170,13 @@ namespace GMapping {
     
     //methods for accessing the parameters
     void setSensorMap(const SensorMap& smap);
-    void init(unsigned int size, double xmin, double ymin, double xmax, double ymax, double delta, 
-	      OrientedPoint initialPose=OrientedPoint(0,0,0));
-    void setMatchingParameters(double urange, double range, double sigma, int kernsize, double lopt, double aopt, 
-			       int iterations, double likelihoodSigma=1, double likelihoodGain=1, unsigned int likelihoodSkip=0);
-    void setMotionModelParameters(double srr, double srt, double str, double stt);
-    void setUpdateDistances(double linear, double angular, double resampleThreshold);
-    void setUpdatePeriod(double p) {period_=p;}
-    
+
+    void init(const GridSlamProcessor::Params& params, OrientedPoint initialPose=OrientedPoint(0,0,0));
+
+    void setGenerateMap(bool val) { m_matcher.setGenerateMap(val); }
+
+    bool getGenerateMap() const { m_matcher.getGenerateMap(); }
+
     //the "core" algorithm
     void processTruePos(const OdometryReading& odometry);
     bool processScan(const RangeReading & reading, int adaptParticles=0);
@@ -178,104 +205,13 @@ namespace GMapping {
     virtual void onResampleUpdate();
     virtual void onScanmatchUpdate();
 
-  //accessor methods
-  public:
-    /**the maxrange of the laser to consider */
-    double getlaserMaxRange() const { return m_matcher.getlaserMaxRange(); }
-    void setlaserMaxRange(double laserMaxRange) { m_matcher.setlaserMaxRange(laserMaxRange); }
-
-    /**the maximum usable range of the laser. A beam is cropped to this value. [scanmatcher]*/
-    double getusableRange() const { return m_matcher.getusableRange(); }
-    void setusableRange(double usableRange) { m_matcher.setusableRange(usableRange); }
-
-    /**The sigma used by the greedy endpoint matching. [scanmatcher]*/
-    double getgaussianSigma() const { m_matcher.getgaussianSigma(); }
-    void setgaussianSigma(double gaussianSigma) { m_matcher.setgaussianSigma(gaussianSigma); }
-
-    /**The sigma  of a beam used for likelihood computation [scanmatcher]*/
-    double getlikelihoodSigma() const { return m_matcher.getlikelihoodSigma(); }
-    void setlikelihoodSigma(double likelihoodSigma) {m_matcher.setlikelihoodSigma(likelihoodSigma); }
-
-    /**The kernel in which to look for a correspondence[scanmatcher]*/
-    int getkernelSize() const { return m_matcher.getkernelSize(); }
-    void setkernelSize(int kernelSize) { m_matcher.setkernelSize(kernelSize); }
-
-    /**The optimization step in rotation [scanmatcher]*/
-    double getoptAngularDelta() const { return m_matcher.getoptAngularDelta(); }
-    void setoptAngularDelta(double optAngularDelta) { m_matcher.setoptAngularDelta(optAngularDelta); }
-
-    /**The optimization step in translation [scanmatcher]*/
-    double getoptLinearDelta() const { return m_matcher.getoptLinearDelta(); }
-    void setoptLinearDelta(double optLinearDelta) {m_matcher.setoptLinearDelta(optLinearDelta); }
-
-    /**The number of iterations of the scanmatcher [scanmatcher]*/
-    unsigned int getoptRecursiveIterations() const { return m_matcher.getoptRecursiveIterations(); }
-    void setoptRecursiveIterations(unsigned int optRecursiveIterations) { m_matcher.setoptRecursiveIterations(optRecursiveIterations); }
-
-    /**the beams to skip for computing the likelihood (consider a beam every likelihoodSkip) [scanmatcher]*/
-    unsigned int getlikelihoodSkip() const { return m_matcher.getlikelihoodSkip(); }
-    void setlikelihoodSkip(unsigned int likelihoodSkip) { m_matcher.setlikelihoodSkip(likelihoodSkip); }
-
-    /**translational sampling range for the likelihood [scanmatcher]*/
-    double getllsamplerange() const { return m_matcher.getllsamplerange(); }
-    void setllsamplerange(double llsamplerange) { m_matcher.setllsamplerange(llsamplerange); }
-
-    /**angular sampling range for the likelihood [scanmatcher]*/
-    double getlasamplerange() const { return m_matcher.getlasamplerange(); }
-    void setlasamplerange(double lasamplerange) { m_matcher.setlasamplerange(lasamplerange); }
-
-    /**translational sampling range for the likelihood [scanmatcher]*/
-    double getllsamplestep() const { return m_matcher.getllsamplestep(); }
-    void setllsamplestep(double llsamplestep) { m_matcher.setllsamplestep(llsamplestep); }
-
-    /**angular sampling step for the likelihood [scanmatcher]*/
-    double getlasamplestep() const {return m_matcher.getlasamplestep(); }
-    void setlasamplestep(double lasamplestep) { m_matcher.setlasamplestep(lasamplestep); }
-
-    /**generate an occupancy grid map [scanmatcher]*/
-    bool getgenerateMap() const { return m_matcher.getgenerateMap(); }
-    void setgenerateMap(bool generateMap) { m_matcher.setgenerateMap(generateMap); }
-
-    /**enlarge the map when the robot goes out of the boundaries [scanmatcher]*/
-    bool getenlargeStep() const { return m_matcher.getenlargeStep(); }
-    void setenlargeStep(bool enlargeStep) { m_matcher.setenlargeStep(enlargeStep); }
-
-    /**pose of the laser wrt the robot [scanmatcher]*/
-    OrientedPoint getlaserPose() const { return m_matcher.getlaserPose(); }
-    void setlaserPose(OrientedPoint laserPose) { m_matcher.setlaserPose(laserPose); }
-
-    /**odometry error in translation as a function of translation (rho/rho) [motionmodel]*/
-    double getsrr() const { return m_motionModel.srr; }
-    void setsrr(double srr) { m_motionModel.srr = srr; }
-
-    /**odometry error in translation as a function of rotation (rho/theta) [motionmodel]*/
-    double getsrt() const { return m_motionModel.srt; }
-    void setsrt(double srt) { m_motionModel.srt = srt; }
-
-    /**odometry error in rotation as a function of translation (theta/rho) [motionmodel]*/
-    double getstr() const { return m_motionModel.str; }
-    void setstr(double str) { m_motionModel.str = str; }
-
-    /**odometry error in  rotation as a function of rotation (theta/theta) [motionmodel]*/
-    double getstt() const { return m_motionModel.stt; }
-    void setstt(double stt) { m_motionModel.stt = stt; }
-		
-    /**minimum score for considering the outcome of the scanmatching good*/
-    double getminimumScore() const { return m_minimumScore; }
-    void setminimumScore(double minimumScore) { m_minimumScore = minimumScore;}
-
   protected:
     /**Copy constructor*/
     GridSlamProcessor(const GridSlamProcessor& gsp);
- 
-    double m_minimumScore;
-    double m_resampleThreshold;
 
     /**the laser beams*/
     unsigned int m_beams;
-    double last_update_time_;
-    double period_;
-    
+    double last_update_time_;  
     
     /**the particles*/
     ParticleVector m_particles;
@@ -291,8 +227,6 @@ namespace GMapping {
 
     /**this sets the neff based resampling threshold*/
   public:
-    double getresampleThreshold() const { return m_resampleThreshold; }
-    void setresampleThreshold(double resampleThreshold) { m_resampleThreshold = resampleThreshold; }
     double getneff() const { return m_neff; }
 
     //processing parameters (size of the map)
@@ -304,40 +238,15 @@ namespace GMapping {
     //processing parameters (resolution of the map)
     double getdelta() const { return m_delta; }
 
-    //registration score (if a scan score is above this threshold it is registered in the map)
-    double getregScore() const { return m_regScore; }
-    void setregScore(double regScore) { m_regScore = regScore; }
-
-    //registration score (if a scan score is below this threshold a scan matching failure is reported)
-    double getcritScore() const { return m_critScore; }
-    void setcritScore(double critScore) { m_critScore = critScore; }    
-
-    //registration score maximum move allowed between consecutive scans
-    double getmaxMove() const { return m_maxMove; }
-    void setmaxMove(double maxMove) { m_maxMove = maxMove; }
-
-    //process a scan each time the robot translates of linearThresholdDistance
-    double getlinearThresholdDistance() const { return m_linearThresholdDistance; }
-    void setlinearThresholdDistance(double linearThresholdDistance) { m_linearThresholdDistance = linearThresholdDistance; }
-
-    //process a scan each time the robot rotates more than angularThresholdDistance
-    double getangularThresholdDistance() const { return m_angularThresholdDistance; }
-    void setangularThresholdDistance(double angularThresholdDistance) { m_angularThresholdDistance = angularThresholdDistance; }
-
-    //smoothing factor for the likelihood
-    double getobsSigmaGain() const { return m_obsSigmaGain; }
-    void setobsSigmaGain(double obsSigmaGain) { m_obsSigmaGain = obsSigmaGain; }
-
   protected:    
     //state
     int  m_count, m_readingCount;
     OrientedPoint m_lastPartPose;
     OrientedPoint m_odoPose;
     OrientedPoint m_pose;
+    double m_neff;
+    double m_xmin, m_ymin, m_xmax, m_ymax, m_delta;
     double m_linearDistance, m_angularDistance;
-    double m_neff, m_delta, m_regScore, m_critScore;
-    double m_xmin, m_ymin, m_xmax, m_ymax;
-    double m_maxMove, m_linearThresholdDistance, m_angularThresholdDistance, m_obsSigmaGain;
 	
     //stream in which to write the gfs file
     std::ofstream m_outputStream;
@@ -377,6 +286,8 @@ namespace GMapping {
     void printScanFrameInfo(const RangeReading & reading);
 
     void printFlush();
+
+    Params m_params;
 
   };
 

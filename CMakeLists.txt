@@ -12,6 +12,8 @@ set(CMAKE_BUILD_TYPE Release)
 
 include_directories(include)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 add_subdirectory(gridfastslam)
 add_subdirectory(scanmatcher)
 add_subdirectory(sensor)

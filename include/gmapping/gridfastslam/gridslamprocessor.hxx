@@ -20,7 +20,7 @@ inline void GridSlamProcessor::scanMatch(const double* plainReading){
     score = m_matcher.optimize(corrected, it->map, it->pose, plainReading);
 
     // If the score gets better, replace pose.
-    if (score>m_minimumScore){
+    if (score > m_params.gridSlamProcParams.minimumScore){
       it->pose=corrected;
 
     } else if (m_infoStream) {
@@ -48,28 +48,26 @@ inline void GridSlamProcessor::scanMatch(const double* plainReading){
 
 inline void GridSlamProcessor::normalize(){
   //normalize the log m_weights
-  double gain=1./(m_obsSigmaGain*m_particles.size());
-  double lmax= -std::numeric_limits<double>::max();
-  for (ParticleVector::iterator it=m_particles.begin(); it!=m_particles.end(); it++){
-    lmax=it->weight>lmax?it->weight:lmax;
+  double gain = 1.0 / (m_params.gridSlamProcParams.obsSigmaGain * m_particles.size());
+  double lmax = -std::numeric_limits<double>::max();
+  for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++) {
+    lmax = std::max(it->weight, lmax);
   }
   
   m_weights.clear();
-  double wcum=0;
-  m_neff=0;
-  for (std::vector<Particle>::iterator it=m_particles.begin(); it!=m_particles.end(); it++){
-    m_weights.push_back(exp(gain*(it->weight-lmax)));
-    wcum+=m_weights.back();
+  double wcum = 0;
+  for (std::vector<Particle>::iterator it = m_particles.begin(); it != m_particles.end(); it++){
+    m_weights.push_back(exp(gain*(it->weight - lmax)));
+    wcum += m_weights.back();
   }
   
-  m_neff=0;
-  for (std::vector<double>::iterator it=m_weights.begin(); it!=m_weights.end(); it++){
-    *it=*it/wcum;
-    double w=*it;
-    m_neff+=w*w;
+  m_neff = 0;
+  for (std::vector<double>::iterator it = m_weights.begin(); it != m_weights.end(); it++){
+    *it = *it / wcum;
+    double w = *it;
+    m_neff += w * w;
   }
-  m_neff=1./m_neff;
-  
+  m_neff = 1.0 / m_neff;
 }
 
 inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSize, const RangeReading* reading){
@@ -82,7 +80,7 @@ inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSiz
   }
   
   // If "m_neff" gets smaller than the threshold, start resampling procedure.
-  if (m_neff < m_resampleThreshold * m_particles.size()){
+  if (m_neff < m_params.gridSlamProcParams.resampleThreshold * m_particles.size()){
     
     if (m_infoStream) {
       m_infoStream  << "*************RESAMPLE***************" << std::endl;
