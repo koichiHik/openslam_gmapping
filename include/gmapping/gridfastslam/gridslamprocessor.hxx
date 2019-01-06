@@ -76,13 +76,7 @@ inline void GridSlamProcessor::normalize(){
 inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSize, const RangeReading* reading){
   
   bool hasResampled = false;
-  std::vector<u_int32_t> indexes;
-  
-  TNodeVector oldGeneration;
-  for (unsigned int i = 0; i < m_particles.size(); i++){
-    oldGeneration.push_back(m_particles[i].node);
-  }
-  
+
   // If "m_neff" gets smaller than the threshold, start resampling procedure.
   if (m_neff < m_params.gridSlamProcParams.resampleThreshold * m_particles.size()){
     
@@ -92,11 +86,12 @@ inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSiz
     
     // Use low-variance sampler for resampling.
     // m_weights contains normalized weight of each particle.
+    std::vector<u_int32_t> indexes;
     uniform_resampler<double, double> resampler;
     indexes = resampler.resampleIndexes(m_weights, adaptSize);
     
     ParticleVector newlyGeneratedParticles;
-    unsigned int j = 0;
+    uint32_t j = 0;
 
     // This is for deleteing the particles which have been resampled away.
     std::vector<uint32_t> deletedParticles;
@@ -114,14 +109,7 @@ inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSiz
 
       // Selected particle.
       Particle& p = m_particles[indexes[i]];
-      TNode* node = 0;
-      // Old node is same, so just copy the pointer.
-      TNode* oldNode = oldGeneration[indexes[i]];
-      node = new TNode(p.pose, 0, oldNode, 0);
-      node->reading = reading;
-      // New particle will be created when inserted into vector.
       newlyGeneratedParticles.push_back(p);
-      newlyGeneratedParticles.back().node = node;
       newlyGeneratedParticles.back().setWeight(0);
     }
 
@@ -133,35 +121,26 @@ inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSiz
     std::cerr << "Deleting Nodes:";
     for (unsigned int i = 0; i < deletedParticles.size(); i++){
       std::cerr << " " << deletedParticles[i];
-
-      // Delete only trajectory nodes.
+      // Delete trajectory nodes because its on heap.
       delete m_particles[deletedParticles[i]].node;
       m_particles[deletedParticles[i]].node = 0;
     }
 
     // Re-generation of m_particles.
     m_particles.clear();
-    std::copy(newlyGeneratedParticles.begin(), newlyGeneratedParticles.end(), m_particles.begin());
-
-    hasResampled = true;
-
-  } else {
-
-    TNodeVector::iterator node_it = oldGeneration.begin();
-
-    // Add one more traj_node.
-    for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++){
-      // Create a new node for each particle and attach it to the old tree.
-      TNode* node = new TNode(it->pose, 0.0, *node_it, 0);
-      node->reading = reading;
-      it->node = node;
-      node_it++;      
+    for (ParticleVector::iterator itr=newlyGeneratedParticles.begin(); 
+          itr!= newlyGeneratedParticles.end(); itr++) {
+      m_particles.push_back(*itr);
     }
+    //std::copy(newlyGeneratedParticles.begin(), newlyGeneratedParticles.end(), m_particles.begin());
+    hasResampled = true;
   }
 
   for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++) {
-    
     // Register scan for the map owned by THIS particle.
+    TNode* node = new TNode(it->pose, 0.0, it->node, 0);
+    node->reading = reading;
+    it->node = node;
     m_matcher.invalidateActiveArea();
     m_matcher.registerScan(it->map, it->pose, plainReading);
   } 

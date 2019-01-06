@@ -231,6 +231,7 @@ using namespace std;
           m_matcher.invalidateActiveArea();
           m_matcher.registerScan(it->map, it->pose, plainReading);          
         }
+        m_infoStream << "Registering First Scan Finished"<< endl;
       }
 
       updateTreeWeights(false);     
