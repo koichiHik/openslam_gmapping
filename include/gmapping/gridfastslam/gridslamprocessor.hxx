@@ -16,12 +16,12 @@ inline void GridSlamProcessor::scanMatch(const double* plainReading){
     OrientedPoint corrected;
     double score, l, s;
 
-    // Scan Match. Prediction : it->pose, Correction : corrected
+    // Improve pose of the particle based on scan matching.
     score = m_matcher.optimize(corrected, it->map, it->pose, plainReading);
 
     // If the score gets better, replace pose.
     if (score > m_params.gridSlamProcParams.minimumScore){
-      it->pose=corrected;
+      it->pose = corrected;
 
     } else if (m_infoStream) {
       m_infoStream << "Scan Matching Failed, using odometry. Likelihood=" << l <<std::endl;
@@ -29,7 +29,8 @@ inline void GridSlamProcessor::scanMatch(const double* plainReading){
       m_infoStream << "op:" << m_odoPose.x << " " << m_odoPose.y << " "<< m_odoPose.theta <<std::endl;
     }
 
-    // 
+    // Calculate score for weighting calculation.
+    // This weighting is for particle.
     m_matcher.likelihoodAndScore(s, l, it->map, it->pose, plainReading);
     sumScore += score;
     it->weight += l;
@@ -47,15 +48,17 @@ inline void GridSlamProcessor::scanMatch(const double* plainReading){
 }
 
 inline void GridSlamProcessor::normalize(){
-  //normalize the log m_weights
-  double gain = 1.0 / (m_params.gridSlamProcParams.obsSigmaGain * m_particles.size());
+
+  // Search maximum weight of the particle.
   double lmax = -std::numeric_limits<double>::max();
   for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++) {
     lmax = std::max(it->weight, lmax);
   }
   
+  // Create weights vector that is normalized.
   m_weights.clear();
   double wcum = 0;
+  double gain = 1.0 / (m_params.gridSlamProcParams.obsSigmaGain * m_particles.size());
   for (std::vector<Particle>::iterator it = m_particles.begin(); it != m_particles.end(); it++){
     m_weights.push_back(exp(gain*(it->weight - lmax)));
     wcum += m_weights.back();
@@ -73,6 +76,7 @@ inline void GridSlamProcessor::normalize(){
 inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSize, const RangeReading* reading){
   
   bool hasResampled = false;
+  std::vector<u_int32_t> indexes;
   
   TNodeVector oldGeneration;
   for (unsigned int i = 0; i < m_particles.size(); i++){
@@ -87,93 +91,80 @@ inline bool GridSlamProcessor::resample(const double* plainReading, int adaptSiz
     }
     
     // Use low-variance sampler for resampling.
+    // m_weights contains normalized weight of each particle.
     uniform_resampler<double, double> resampler;
-    m_indexes=resampler.resampleIndexes(m_weights, adaptSize);
+    indexes = resampler.resampleIndexes(m_weights, adaptSize);
     
-    if (m_outputStream.is_open()){
-      m_outputStream << "RESAMPLE "<< m_indexes.size() << " ";
-      for (std::vector<unsigned int>::const_iterator it = m_indexes.begin(); it != m_indexes.end(); it++){
-	      m_outputStream << *it <<  " ";
-      }
-      m_outputStream << std::endl;
-    }
-    
-    // Invoke callback.
-    onResampleUpdate();
-
-    ParticleVector temp;
-    unsigned int j=0;
+    ParticleVector newlyGeneratedParticles;
+    unsigned int j = 0;
 
     // This is for deleteing the particles which have been resampled away.
-    std::vector<unsigned int> deletedParticles;
+    std::vector<uint32_t> deletedParticles;
     
-    for (unsigned int i=0; i<m_indexes.size(); i++){
-      while(j < m_indexes[i]){ 
+    // Stroing index of deleted particles.
+    for (uint32_t i = 0; i < indexes.size(); i++){
+
+      while(j < indexes[i]){ 
         deletedParticles.push_back(j);
         j++;
 			}
-      if (j == m_indexes[i]) {
+      if (j == indexes[i]) {
 	      j++;
       }
 
-      Particle & p = m_particles[m_indexes[i]];
+      // Selected particle.
+      Particle& p = m_particles[indexes[i]];
       TNode* node = 0;
-      TNode* oldNode = oldGeneration[m_indexes[i]];
-      node = new	TNode(p.pose, 0, oldNode, 0);
-      node->reading = reading;    
-      temp.push_back(p);
-      temp.back().node = node;
-      temp.back().previousIndex = m_indexes[i];
+      // Old node is same, so just copy the pointer.
+      TNode* oldNode = oldGeneration[indexes[i]];
+      node = new TNode(p.pose, 0, oldNode, 0);
+      node->reading = reading;
+      // New particle will be created when inserted into vector.
+      newlyGeneratedParticles.push_back(p);
+      newlyGeneratedParticles.back().node = node;
+      newlyGeneratedParticles.back().setWeight(0);
     }
 
-    while(j<m_indexes.size()){
+    while(j < indexes.size()){
       deletedParticles.push_back(j);
       j++;
     }
 
-    std::cerr <<  "Deleting Nodes:";
-    for (unsigned int i=0; i<deletedParticles.size(); i++){
-      std::cerr <<" " << deletedParticles[i];
+    std::cerr << "Deleting Nodes:";
+    for (unsigned int i = 0; i < deletedParticles.size(); i++){
+      std::cerr << " " << deletedParticles[i];
+
+      // Delete only trajectory nodes.
       delete m_particles[deletedParticles[i]].node;
-      m_particles[deletedParticles[i]].node=0;
+      m_particles[deletedParticles[i]].node = 0;
     }
-    std::cerr  << " Done" <<std::endl;
-    
-    std::cerr << "Deleting old particles..." ;
+
+    // Re-generation of m_particles.
     m_particles.clear();
-    std::cerr << "Done" << std::endl;
-    std::cerr << "Copying Particles and  Registering  scans...";
-    for (ParticleVector::iterator it=temp.begin(); it!=temp.end(); it++){
-      it->setWeight(0);
-      m_matcher.invalidateActiveArea();
-      m_matcher.registerScan(it->map, it->pose, plainReading);
-      m_particles.push_back(*it);
-    }
-    std::cerr  << " Done" <<std::endl;
+    std::copy(newlyGeneratedParticles.begin(), newlyGeneratedParticles.end(), m_particles.begin());
+
     hasResampled = true;
+
   } else {
 
-    int index=0;
-
-    // Iterate all particles.
     TNodeVector::iterator node_it = oldGeneration.begin();
-    for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++){
 
+    // Add one more traj_node.
+    for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++){
       // Create a new node for each particle and attach it to the old tree.
-      // This node has its own scan.
       TNode* node = new TNode(it->pose, 0.0, *node_it, 0);
       node->reading = reading;
       it->node = node;
-
-      // Register scan for the map owned by THIS particle.
-      m_matcher.invalidateActiveArea();
-      m_matcher.registerScan(it->map, it->pose, plainReading);
-      it->previousIndex=index;
-      index++;
       node_it++;      
     }
-
   }
-  
+
+  for (ParticleVector::iterator it = m_particles.begin(); it != m_particles.end(); it++) {
+    
+    // Register scan for the map owned by THIS particle.
+    m_matcher.invalidateActiveArea();
+    m_matcher.registerScan(it->map, it->pose, plainReading);
+  } 
+
   return hasResampled;
 }

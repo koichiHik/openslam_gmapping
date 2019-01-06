@@ -9,14 +9,13 @@ namespace GMapping {
 
 struct PointAccumulator{
 	typedef point<float> FloatPoint;
-	/* before 
-	PointAccumulator(int i=-1): acc(0,0), n(0), visits(0){assert(i==-1);}
-	*/
+
 	/*after begin*/
 	PointAccumulator(): acc(0,0), n(0), visits(0){}
 	PointAccumulator(int i): acc(0,0), n(0), visits(0){assert(i==-1);}
 	/*after end*/
-        inline void update(bool value, const Point& p=Point(0,0));
+
+  inline void update(bool value, const Point& p=Point(0,0));
 	inline Point mean() const {return 1./n*Point(acc.x, acc.y);}
 	inline operator double() const { return visits?(double)n*SIGHT_INC/(double)visits:-1; }
 	inline void add(const PointAccumulator& p) {acc=acc+p.acc; n+=p.n; visits+=p.visits; }

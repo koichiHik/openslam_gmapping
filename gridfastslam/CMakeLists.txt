@@ -1,8 +1,10 @@
 add_library(gridfastslam
-    gfsreader.cpp
     gridslamprocessor.cpp
     gridslamprocessor_tree.cpp
+    gridslamprocessor_debug_print.cpp
     motionmodel.cpp
+    particle.cpp
+    pose_node.cpp
 )
 target_link_libraries(gridfastslam scanmatcher sensor_range)
 

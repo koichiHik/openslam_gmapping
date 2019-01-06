@@ -13,6 +13,8 @@
 #include <gmapping/sensor/sensor_range/rangesensor.h>
 #include <gmapping/sensor/sensor_range/rangereading.h>
 #include <gmapping/scanmatcher/scanmatcher.h>
+#include <gmapping/gridfastslam/particle.h>
+#include <gmapping/gridfastslam/pose_node.h>
 #include "motionmodel.h"
 
 
@@ -61,106 +63,10 @@ namespace GMapping {
       ScanMatcher::Params scanMatcherParams;
       MotionModel::Params motionModelParams;
     };
-    
-    /**This class defines the the node of reversed tree in which the trajectories are stored.
-       Each node of a tree has a pointer to its parent and a counter indicating the number of childs of a node.
-       The tree is updated in a way consistent with the operation performed on the particles.
-   */
-    struct TNode{
-      /**Constructs a node of the trajectory tree.
-       @param pose:      the pose of the robot in the trajectory
-       @param weight:    the weight of the particle at that point in the trajectory
-       @param accWeight: the cumulative weight of the particle
-       @param parent:    the parent node in the tree
-       @param childs:    the number of childs
-      */
-      TNode(const OrientedPoint& pose, double weight, TNode* parent=0, unsigned int childs=0);
-
-      /**Destroys a tree node, and consistently updates the tree. If a node whose parent has only one child is deleted,
-       also the parent node is deleted. This because the parent will not be reacheable anymore in the trajectory tree.*/
-      ~TNode();
-
-      /**The pose of the robot*/
-      OrientedPoint pose; 
-      
-      /**The weight of the particle*/
-      double weight;
-
-      /**The sum of all the particle weights in the previous part of the trajectory*/
-      double accWeight;
-
-      double gweight;
-
-      /**The parent*/
-      TNode* parent;
-
-      /**The range reading to which this node is associated*/
-      const RangeReading* reading;
-
-      /**The number of childs*/
-      unsigned int childs;
-
-      /**counter in visiting the node (internally used)*/
-      mutable unsigned int visitCounter;
-
-      /**visit flag (internally used)*/
-      mutable bool flag;
-    };
-    
-    typedef std::vector<GridSlamProcessor::TNode*> TNodeVector;
-    typedef std::deque<GridSlamProcessor::TNode*> TNodeDeque;
-    
-    /**This class defines a particle of the filter. Each particle has a map, a pose, 
-     * a weight and retains the current node in the trajectory tree
-     **/
-    struct Particle{
-      /**constructs a particle, given a map
-	 @param map: the particle map
-      */
-      Particle(const ScanMatcherMap& map);
-
-      /** @returns the weight of a particle */
-      inline operator double() const {return weight;}
-      /** @returns the pose of a particle */
-      inline operator OrientedPoint() const {return pose;}
-      /** sets the weight of a particle
-	  @param w the weight
-      */
-      inline void setWeight(double w) {weight=w;}
-      /** The map */
-      ScanMatcherMap map;
-      /** The pose of the robot */
-      OrientedPoint pose;
-
-      /** The pose of the robot at the previous time frame (used for computing thr odometry displacements) */
-      OrientedPoint previousPose;
-
-      /** The weight of the particle */
-      double weight;
-
-      /** The cumulative weight of the particle */
-      double weightSum;
-
-      double gweight;
-
-      /** The index of the previous particle in the trajectory tree */
-      int previousIndex;
-
-      /** Entry to the trajectory tree */
-      TNode* node; 
-    };
-	
-    
-    typedef std::vector<Particle> ParticleVector;
-    
+       
     /** Constructs a GridSlamProcessor, initialized with the default parameters */
     GridSlamProcessor();
 
-    /** Constructs a GridSlamProcessor, whose output is routed to a stream.
-     @param infoStr: the output stream
-    */
-    GridSlamProcessor(std::ostream& infoStr);
-    
     /** @returns  a deep copy of the grid slam processor with all the internal structures.
     */
     GridSlamProcessor* clone() const;
@@ -179,6 +85,7 @@ namespace GMapping {
 
     //the "core" algorithm
     void processTruePos(const OdometryReading& odometry);
+    
     bool processScan(const RangeReading & reading, int adaptParticles=0);
     
     /**This method copies the state of the filter in a tree.
@@ -187,7 +94,6 @@ namespace GMapping {
      @returns the leafs of the tree
     */
     TNodeVector getTrajectories() const;
-    void integrateScanSequence(TNode* node);
     
     /**the scanmatcher algorithm*/
     ScanMatcher m_matcher;
@@ -198,12 +104,7 @@ namespace GMapping {
     /**@returns the particles*/
     inline const ParticleVector& getParticles() const {return m_particles; }
     
-    inline const std::vector<unsigned int>& getIndexes() const{return m_indexes; }
     int getBestParticleIndex() const;
-    //callbacks
-    virtual void onOdometryUpdate();
-    virtual void onResampleUpdate();
-    virtual void onScanmatchUpdate();
 
   protected:
     /**Copy constructor*/
@@ -215,9 +116,6 @@ namespace GMapping {
     
     /**the particles*/
     ParticleVector m_particles;
-
-    /**the particle indexes after resampling (internally used)*/
-    std::vector<unsigned int> m_indexes;
 
     /**the particle weights (internally used)*/
     std::vector<double> m_weights;
@@ -260,6 +158,7 @@ namespace GMapping {
     
     /**scanmatches all the particles*/
     inline void scanMatch(const double *plainReading);
+
     /**normalizes the particle weights*/
     inline void normalize();
     
@@ -273,7 +172,7 @@ namespace GMapping {
     double propagateWeights();
     
     // Messageing Functions.
-    void printOdomJumpWarnings(const OrientedPoint & new_pose);
+    void printOdomJumpWarnings(const OrientedPoint & new_pose, double dist_thresh);
 
     void printBasicInfoForScanUpdate();
 
@@ -291,8 +190,7 @@ namespace GMapping {
 
   };
 
-typedef std::multimap<const GridSlamProcessor::TNode*, GridSlamProcessor::TNode*> TNodeMultimap;
-
+typedef std::multimap<const TNode*, TNode*> TNodeMultimap;
 
 #include "gridslamprocessor.hxx"
 

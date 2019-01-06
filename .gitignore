@@ -1,4 +1,6 @@
 *.d
 *.o
+.vscode/
+build/
 bin/
 lib/

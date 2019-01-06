@@ -33,11 +33,11 @@ void ScanMatcher::computeActiveArea(ScanMatcherMap& map, const OrientedPoint& p,
 	lp.x += cos(p.theta) * m_laserPose.x - sin(p.theta) * m_laserPose.y;
 	lp.y += sin(p.theta) * m_laserPose.x + cos(p.theta) * m_laserPose.y;
 	lp.theta += m_laserPose.theta;
-	IntPoint p0=map.world2map(lp);
+	IntPoint p0 = map.world2map(lp);
 	
 	Point min(map.map2world(0,0));
 	Point max(map.map2world(map.getMapSizeX() - 1, map.getMapSizeY() - 1));
-	       
+
 	min.x = std::min(lp.x, min.x);
 	min.y = std::min(lp.y, min.y);
 	max.x = std::max(lp.x, max.x);
@@ -53,22 +53,24 @@ void ScanMatcher::computeActiveArea(ScanMatcherMap& map, const OrientedPoint& p,
 		Point phit = lp;
 		phit.x += d * cos(lp.theta + *angle);
 		phit.y += d * sin(lp.theta + *angle);
-		if (phit.x<min.x) min.x=phit.x;
+		if (phit.x < min.x) min.x = phit.x;
 
 		min.x = std::min(min.x, phit.x);
 		min.y = std::min(min.y, phit.y);
 		max.x = std::max(max.x, phit.x);
 		max.y = std::max(max.y, phit.y);
 	}
-	
+
 	// Point is outside of map.
 	if ( !map.isInside(min)	|| !map.isInside(max)){
 		Point lmin(map.map2world(0,0));
 		Point lmax(map.map2world(map.getMapSizeX() - 1, map.getMapSizeY() - 1));
+
 		min.x = ( min.x >= lmin.x ) ? lmin.x : min.x - m_params.enlargeStep;
 		max.x = ( max.x <= lmax.x ) ? lmax.x : max.x + m_params.enlargeStep;
 		min.y = ( min.y >= lmin.y ) ? lmin.y : min.y - m_params.enlargeStep;
 		max.y = ( max.y <= lmax.y ) ? lmax.y : max.y + m_params.enlargeStep;
+
 		map.resize(min.x, min.y, max.x, max.y);
 	}
 	
@@ -193,7 +195,6 @@ double ScanMatcher::registerScan(ScanMatcherMap& map, const OrientedPoint& p, co
 
 	return esum;
 }
-
 
 double ScanMatcher::icpOptimize(OrientedPoint& pnew, const ScanMatcherMap& map, const OrientedPoint& init, const double* readings) const{
 	double currentScore;

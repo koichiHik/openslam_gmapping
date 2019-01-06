@@ -2,6 +2,7 @@
 #define PARTICLEFILTER_H
 #include <stdlib.h>
 #include <sys/types.h>
+#include <stdint.h>
 #include <vector>
 #include <utility>
 #include <cmath>
@@ -152,35 +153,38 @@ struct uniform_resampler{
 
 /*Implementation of the above stuff*/
 template <class Particle, class Numeric>
-std::vector<unsigned int> uniform_resampler<Particle, Numeric>:: resampleIndexes(const std::vector<Particle>& particles, int nparticles) const{
+std::vector<unsigned int> uniform_resampler<Particle, Numeric>::
+	resampleIndexes(const std::vector<Particle>& particles, int nparticles) const 
+{
 	Numeric cweight=0;
 
 	//compute the cumulative weights
-	unsigned int n=0;
-	for (typename std::vector<Particle>::const_iterator it=particles.begin(); it!=particles.end(); ++it){
-		cweight+=(Numeric)*it;
+	uint32_t n = 0;
+	for (typename std::vector<Particle>::const_iterator it = particles.begin(); it != particles.end(); ++it){
+		cweight += (Numeric)*it;
 		n++;
 	}
 
-	if (nparticles>0)
-		n=nparticles;
+	if (nparticles > 0) {
+		n = nparticles;
+	}
 	
 	//compute the interval
-	Numeric interval=cweight/n;
+	Numeric interval = cweight / n;
 
 	//compute the initial target weight
-	Numeric target=interval*::drand48();
-	//compute the resampled indexes
+	Numeric target = interval * ::drand48();
 
-	cweight=0;
-	std::vector<unsigned int> indexes(n);
-	n=0;
-	unsigned int i=0;
-	for (typename std::vector<Particle>::const_iterator it=particles.begin(); it!=particles.end(); ++it, ++i){
-		cweight+=(Numeric)* it;
-		while(cweight>target){
-			indexes[n++]=i;
-			target+=interval;
+	//compute the resampled indexes
+	cweight = 0;
+	std::vector<uint32_t> indexes(n);
+	n = 0;
+	uint32_t i = 0;
+	for (typename std::vector<Particle>::const_iterator it = particles.begin(); it != particles.end(); ++it, ++i){
+		cweight += (Numeric)*it;
+		while(cweight > target){
+			indexes[n++] = i;
+			target += interval;
 		}
 	}
 	return indexes;
